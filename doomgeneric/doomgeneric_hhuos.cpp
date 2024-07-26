@@ -2,13 +2,11 @@
 #include "doomkeys.h"
 #include "doomtype.h"
 #include "i_sound.h"
-#include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
-
 #include "lib/util/graphic/Ansi.h"
 #include "lib/util/graphic/LinearFrameBuffer.h"
 #include "lib/util/io/file/File.h"
@@ -19,40 +17,49 @@
 #include "lib/util/io/key/layout/DeLayout.h"
 #include "lib/util/sound/PcSpeaker.h"
 
-
+Util::Graphic::LinearFrameBuffer *lfb;
+Util::Io::KeyDecoder *kd;
 
 int main(int argc, char **argv) {
+    if (!Util::Io::File::changeDirectory("/user/doom")) {
+        Util::System::error << "quakegeneric: '/user/doom' not found!" << Util::Io::PrintStream::endl << Util::Io::PrintStream::flush;
+        return -1;
+    }
+
 	doomgeneric_Create(argc, argv);
-	while (1) {
+    lfb->clear();
+
+	while (true) {
 		doomgeneric_Tick();
 	}
-	return 0;
 }
 
-
-Util::Graphic::LinearFrameBuffer * lfb;
-Util::Io::KeyDecoder * kd;
-
-
 void DG_Init() {
-	printf("DG_Init\n");
-	
 	Util::Graphic::Ansi::prepareGraphicalApplication(true);
-	auto file = new Util::Io::File("/device/lfb") ;
-	lfb = new Util::Graphic::LinearFrameBuffer( *file);
+	auto file = new Util::Io::File("/device/lfb");
+	lfb = new Util::Graphic::LinearFrameBuffer(*file);
+    lfb->clear();
 	
-	kd = new Util::Io::KeyDecoder(new Util::Io::DeLayout());	
-	
+	kd = new Util::Io::KeyDecoder(new Util::Io::DeLayout());
 }
 
 void DG_DrawFrame() {
-	//printf("DG_DrawFrame\n");
-	Util::Address<uint32_t> buf = lfb->getBuffer();
-	
-	for (int i=0; i<DOOMGENERIC_RESY; i++) {
-		buf.copyRange(Util::Address<uint32_t>(DG_ScreenBuffer + DOOMGENERIC_RESX * i), DOOMGENERIC_RESX * 4);
-		buf = buf.add(lfb->getResolutionX() * 4);
-	}
+    if (lfb == nullptr) {
+        return;
+    }
+
+    auto offsetX = lfb->getResolutionX() - DOOMGENERIC_RESX > 0 ? (lfb->getResolutionX() - DOOMGENERIC_RESX) / 2 : 0;
+    auto offsetY = lfb->getResolutionY() - DOOMGENERIC_RESY > 0 ? (lfb->getResolutionY() - DOOMGENERIC_RESY) / 2 : 0;
+
+    auto doomScreenBuffer = Util::Address<uint32_t>(DG_ScreenBuffer);
+    auto screenBuffer = lfb->getBuffer().add(offsetX * 4 + offsetY * lfb->getPitch());
+
+    for (uint32_t y = 0; y < DOOMGENERIC_RESY; y++) {
+        screenBuffer.copyRange(doomScreenBuffer, DOOMGENERIC_RESX * 4);
+
+        doomScreenBuffer = doomScreenBuffer.add(DOOMGENERIC_RESX * 4);
+        screenBuffer = screenBuffer.add(lfb->getPitch());
+    }
 }
 
 void DG_SleepMs(uint32_t ms) {
@@ -66,9 +73,7 @@ uint32_t DG_GetTicksMs() {
 int DG_GetKey(int * pressed, unsigned char * key) {
 	if (!stdin->isReadyToRead()) {
 		return 0;
-		
 	} else {
-		//todo: fire, lalt;
 		uint8_t scancode = fgetc(stdin);
 		
 		if ((scancode & ~0x80) == 0x1d) {
@@ -85,7 +90,9 @@ int DG_GetKey(int * pressed, unsigned char * key) {
 		
 		if (kd->parseScancode(scancode)) {
 			auto k = kd->getCurrentKey();
-			if (!k.isValid()) return 0;
+			if (!k.isValid()) {
+                return 0;
+            }
 			
 			*pressed = k.isPressed() ? 1:0; 
 			
@@ -123,10 +130,12 @@ int DG_GetKey(int * pressed, unsigned char * key) {
 					*key = KEY_BACKSPACE;
 					return 1;
 				default:
-					if (k.getAscii()) *key = tolower(k.getAscii());
-					else return 0;
-					return 1;
-				
+					if (k.getAscii()) {
+                        *key = tolower(k.getAscii());
+                        return 1;
+                    }
+
+                    return 0;
 			}
 		}
 		
@@ -134,11 +143,9 @@ int DG_GetKey(int * pressed, unsigned char * key) {
 	return 0;
 }
 
-void DG_SetWindowTitle(const char * title) {
-}
+void DG_SetWindowTitle(const char * title) {}
 
-
-Util::Sound::PcSpeaker * speaker;
+Util::Sound::PcSpeaker *speaker;
 
 bool I_SDL_InitMusic() {
 	speaker = new Util::Sound::PcSpeaker(Util::Io::File("/device/speaker"));
@@ -150,8 +157,7 @@ void I_SDL_ShutdownMusic() {
 	delete speaker;
 }
 
-void I_SDL_SetMusicVolume(int volume) {
-}
+void I_SDL_SetMusicVolume(int volume) {}
 
 struct MUSheader {
 	char ID[4];
@@ -169,8 +175,6 @@ struct Song {
 	uint8_t * currentPoint;
 };
 
-
-
 void * I_SDL_RegisterSong(void * data, int len) {
 	MUSheader * header = (MUSheader *) data;
 	uint8_t * scoreStart = (uint8_t*)data + header->scoreStart;
@@ -183,7 +187,6 @@ void * I_SDL_RegisterSong(void * data, int len) {
 	newSong->currentPoint = newSong->musicData ;
 	return (void*)newSong;
 }
-
 
 void I_SDL_UnRegisterSong(void* handle) { 
 	Song * song = (Song*)handle;
@@ -215,13 +218,16 @@ int noteVolume = -1;
 void I_SDL_PlaySong(void * handle, bool looping) {
 	current = (Song*) handle;
 	if ((current->musicDataEnd - current->musicData) != 17237) {
-	  speaker->turnOff();
-	  return; //only play Hangar 1 music
-	  }
+        speaker->turnOff();
+        return; //only play Hangar 1 music
+    }
+
 	current->currentPoint = current->musicData;
 	playing = true;
-	loop = looping; 
-	for (int i=0;i<16;i++)channelVolumes[i] = -1;
+	loop = looping;
+
+	for (int i = 0; i < 16; i++)channelVolumes[i] = -1;
+
 	channelPlaying = -1;
 	notePlaying = -1;
 	noteVolume = -1;
@@ -236,30 +242,27 @@ bool I_SDL_MusicIsPlaying() {
 	return playing;
 }
 
-
-
-int eigthOctaveFreqs[12] = {4186, 4435,  4699, 4978, 5274, 5588, 5920, 6272, 6644, 7040, 7458};
-
-
+int32_t eigthOctaveFreqs[12] = { 4186, 4435,  4699, 4978, 5274, 5588, 5920, 6272, 6644, 7040, 7458 };
 
 int freqFromNoteNum(int noteNum) {
-	return  eigthOctaveFreqs[noteNum % 12] * pow(0.5, 8 - (noteNum/12));
+	return eigthOctaveFreqs[noteNum % 12] * pow(0.5, 8 - (noteNum / 12));
 }
 
 int focalNote = 60;	
 
-void I_SDL_PollMusic() { //MUS file parsing
+void I_SDL_PollMusic() { // MUS file parsing
 	if (playing && clock() >= waitClock) {
 		bool last = false;
 		while (!last) {
 			uint8_t eventDesc = *(current->currentPoint++);
 			last = eventDesc & 0x80;
-			int channelNum = eventDesc & 0b1111;
-			int eventType = (eventDesc>>4) & 0b111;
+			int32_t channelNum = eventDesc & 0b1111;
+            int32_t eventType = (eventDesc>>4) & 0b111;
 			uint8_t data, vol;
 			vol = channelVolumes[channelNum];
+
 			switch (eventType) {
-				case 0: //release
+				case 0: // release
 					data = *(current->currentPoint++);
 					if (channelPlaying == channelNum && data == notePlaying) {
 						speaker->turnOff();
@@ -267,8 +270,9 @@ void I_SDL_PollMusic() { //MUS file parsing
 						channelPlaying = -1;
 						noteVolume = -1;
 					}
+
 					break;
-				case 1: //play
+				case 1: // play
 					 data =  *(current->currentPoint++);
 					 if (data & 0x80) vol = *(current->currentPoint++); //volume info;
 					 data &= ~0x80;
@@ -279,26 +283,34 @@ void I_SDL_PollMusic() { //MUS file parsing
 						 noteVolume = vol;
 						 speaker->play(freqFromNoteNum(data));
 					 }
+
 					 break;
-					 
-				case 2: //pitch bend - ignore
+				case 2: // pitch bend - ignore
 					current->currentPoint++;
 					break;
-					
-				case 3: //event
+				case 3: // event
 					 data =  *(current->currentPoint++);
-					 if (data == 10 || data == 11 || data == 14) speaker->turnOff();
+					 if (data == 10 || data == 11 || data == 14) {
+                         speaker->turnOff();
+                     }
+
 					 break;
-				case 4: //change controller - ignored 
+				case 4: // change controller - ignored
 					data = *(current->currentPoint++);
 					vol = *(current->currentPoint++);
-					if (data == 3) channelVolumes[channelNum] = vol;
+					if (data == 3) {
+                        channelVolumes[channelNum] = vol;
+                    }
+
 					break;
 				case 5:
 					break;
 				case 6:
 					I_SDL_StopSong();
-					if (loop) I_SDL_PlaySong((void*)current, loop);
+					if (loop) {
+                        I_SDL_PlaySong((void*)current, loop);
+                    }
+
 					return;
 				case 7:
 					break;
@@ -312,19 +324,15 @@ void I_SDL_PollMusic() { //MUS file parsing
 			time = time * 128 + (byte & 127);
 		} while (byte & 128);
 		
-		waitClock = clock() + time*1000/180; // should be 140, accelerated cause VM
+		waitClock = clock() + time * 1000 / 180; // should be 140, accelerated cause VM
 	}
 }
 
-
-
-static snddevice_t music_sdl_devices[] =
-{
+static snddevice_t music_sdl_devices[] = {
     SNDDEVICE_PCSPEAKER
 };
 
-music_module_t DG_music_module =
-{
+music_module_t DG_music_module = {
     music_sdl_devices,
     arrlen(music_sdl_devices),
     I_SDL_InitMusic,
