@@ -214,7 +214,10 @@ int noteVolume = -1;
 
 void I_SDL_PlaySong(void * handle, bool looping) {
 	current = (Song*) handle;
-	if ((current->musicDataEnd - current->musicData) != 17237) return; //only play Hangar 1 music
+	if ((current->musicDataEnd - current->musicData) != 17237) {
+	  speaker->turnOff();
+	  return; //only play Hangar 1 music
+	  }
 	current->currentPoint = current->musicData;
 	playing = true;
 	loop = looping; 
