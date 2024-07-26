@@ -264,7 +264,7 @@ void I_Quit (void)
 #endif
 }
 
-#if !defined(_WIN32) && !defined(__MACOSX__) && !defined(__DJGPP__)
+#if !defined(_WIN32) && !defined(__MACOSX__) && !defined(__DJGPP__) && !defined(__HHUOS__)
 #define ZENITY_BINARY "/usr/bin/zenity"
 
 // returns non-zero if zenity is available
@@ -450,6 +450,12 @@ void I_Error (char *error, ...)
     }
 #elif defined(__DJGPP__)
     {
+        printf("%s\n", msgbuf);
+        exit(-1);
+    }
+	
+#elif defined (__HHUOS__)
+	{
         printf("%s\n", msgbuf);
         exit(-1);
     }

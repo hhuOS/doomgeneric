@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if defined(FEATURE_SOUND) && !defined(__DJGPP__)
+#if defined(FEATURE_SOUND) && (!defined(__DJGPP__) && !defined(__HHUOS__))
 #include <SDL_mixer.h>
 #endif
 
@@ -73,7 +73,7 @@ static int snd_mport = 0;
 
 static sound_module_t *sound_modules[] = 
 {
-    #ifdef FEATURE_SOUND
+    #if defined(FEATURE_SOUND) && !defined(__HHUOS__)
     &DG_sound_module,
     #endif
     NULL,
@@ -394,8 +394,10 @@ boolean I_MusicIsPlaying(void)
 
 void I_BindSoundVariables(void)
 {
+    #ifndef __HHUOS__
     extern int use_libsamplerate;
     extern float libsamplerate_scale;
+    #endif
 
     M_BindVariable("snd_musicdevice",   &snd_musicdevice);
     M_BindVariable("snd_sfxdevice",     &snd_sfxdevice);
@@ -408,7 +410,7 @@ void I_BindSoundVariables(void)
     M_BindVariable("snd_samplerate",    &snd_samplerate);
     M_BindVariable("snd_cachesize",     &snd_cachesize);
 
-#ifdef FEATURE_SOUND
+#if defined(FEATURE_SOUND) && !defined(__HHUOS__)
     M_BindVariable("use_libsamplerate",   &use_libsamplerate);
     M_BindVariable("libsamplerate_scale", &libsamplerate_scale);
 #endif
