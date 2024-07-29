@@ -1,12 +1,14 @@
-#include "doomgeneric.h"
-#include "doomkeys.h"
-#include "doomtype.h"
-#include "i_sound.h"
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
+
+#include "doomgeneric.h"
+#include "doomkeys.h"
+#include "doomtype.h"
+#include "i_sound.h"
+
 #include "lib/util/graphic/Ansi.h"
 #include "lib/util/graphic/LinearFrameBuffer.h"
 #include "lib/util/io/file/File.h"
@@ -16,8 +18,6 @@
 #include "lib/util/io/key/KeyDecoder.h"
 #include "lib/util/io/key/layout/DeLayout.h"
 #include "lib/util/sound/PcSpeaker.h"
-#include "m_argv.h"
-#include "lib/util/math/Math.h"
 #include "lib/util/graphic/BufferedLinearFrameBuffer.h"
 
 Util::Graphic::LinearFrameBuffer *lfb;
@@ -69,9 +69,17 @@ int32_t main(int argc, char **argv) {
     offsetX = lfb->getResolutionX() - DOOMGENERIC_RESX * scaleFactor > 0 ? (lfb->getResolutionX() - DOOMGENERIC_RESX * scaleFactor) / 2 : 0;
     offsetY = lfb->getResolutionY() - DOOMGENERIC_RESY * scaleFactor > 0 ? (lfb->getResolutionY() - DOOMGENERIC_RESY * scaleFactor) / 2 : 0;
 
-	while (true) {
-		doomgeneric_Tick();
-	}
+    // Run game loop
+    auto oldTime = clock();
+    while (true) {
+        auto newTime = clock();
+        if (oldTime == newTime) {
+            Util::Async::Thread::yield();
+        } else {
+            doomgeneric_Tick();
+            oldTime = newTime;
+        }
+    }
 }
 
 void DG_Init() {
