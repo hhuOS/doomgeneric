@@ -56,7 +56,7 @@ int32_t main(int argc, char **argv) {
     lfb = new Util::Graphic::LinearFrameBuffer(*lfbFile);
     bufferedlfb = new Util::Graphic::BufferedLinearFrameBuffer(*lfb);
 
-    // Calculate scale factor the game as large as possible
+    // Calculate scale factor to display the game as large as possible
     scaleFactor = lfb->getResolutionX() / DOOMGENERIC_RESX;
     if (lfb->getResolutionY() / DOOMGENERIC_RESY < scaleFactor) {
         scaleFactor = lfb->getResolutionY() / DOOMGENERIC_RESY;
@@ -173,6 +173,60 @@ int DG_GetKey(int * pressed, unsigned char * key) {
 				case Util::Io::Key::BACKSPACE:
 					*key = KEY_BACKSPACE;
 					return 1;
+                case Util::Io::Key::HOME:
+                    *key = KEY_HOME;
+                    return 1;
+                case Util::Io::Key::END:
+                    *key = KEY_END;
+                    return 1;
+                case Util::Io::Key::INSERT:
+                    *key = KEY_INS;
+                    return 1;
+                case Util::Io::Key::DEL:
+                    *key = KEY_DEL;
+                    return 1;
+                case Util::Io::Key::PAGE_UP:
+                    *key = KEY_PGUP;
+                    return 1;
+                case Util::Io::Key::PAGE_DOWN:
+                    *key = KEY_PGDN;
+                    return 1;
+                case Util::Io::Key::F1:
+                    *key = KEY_F1;
+                    return 1;
+                case Util::Io::Key::F2:
+                    *key = KEY_F2;
+                    return 1;
+                case Util::Io::Key::F3:
+                    *key = KEY_F3;
+                    return 1;
+                case Util::Io::Key::F4:
+                    *key = KEY_F4;
+                    return 1;
+                case Util::Io::Key::F5:
+                    *key = KEY_F5;
+                    return 1;
+                case Util::Io::Key::F6:
+                    *key = KEY_F6;
+                    return 1;
+                case Util::Io::Key::F7:
+                    *key = KEY_F7;
+                    return 1;
+                case Util::Io::Key::F8:
+                    *key = KEY_F8;
+                    return 1;
+                case Util::Io::Key::F9:
+                    *key = KEY_F9;
+                    return 1;
+                case Util::Io::Key::F10:
+                    *key = KEY_F10;
+                    return 1;
+                case Util::Io::Key::F11:
+                    *key = KEY_F11;
+                    return 1;
+                case Util::Io::Key::F12:
+                    *key = KEY_F12;
+                    return 1;
 				default:
 					if (k.getAscii()) {
                         *key = tolower(k.getAscii());
