@@ -16,18 +16,58 @@
 #include "lib/util/io/key/KeyDecoder.h"
 #include "lib/util/io/key/layout/DeLayout.h"
 #include "lib/util/sound/PcSpeaker.h"
+#include "m_argv.h"
+#include "lib/util/math/Math.h"
+#include "lib/util/graphic/BufferedLinearFrameBuffer.h"
 
 Util::Graphic::LinearFrameBuffer *lfb;
+Util::Graphic::BufferedLinearFrameBuffer *bufferedlfb;
 Util::Io::KeyDecoder *kd;
 
-int main(int argc, char **argv) {
+uint32_t scaleFactor = 1;
+uint32_t offsetX = 0;
+uint32_t offsetY = 0;
+
+int32_t main(int argc, char **argv) {
     if (!Util::Io::File::changeDirectory("/user/doom")) {
-        Util::System::error << "quakegeneric: '/user/doom' not found!" << Util::Io::PrintStream::endl << Util::Io::PrintStream::flush;
+        Util::System::error << "doomgeneric: '/user/doom' not found!" << Util::Io::PrintStream::endl << Util::Io::PrintStream::flush;
         return -1;
     }
 
 	doomgeneric_Create(argc, argv);
-    lfb->clear();
+
+    // Prepare graphics
+    Util::Graphic::Ansi::prepareGraphicalApplication(true);
+    auto lfbFile = new Util::Io::File("/device/lfb");
+
+    // If '-res is given, try to change display resolution
+    for (int32_t i = 0; i < argc; i++) {
+        if (!strcmp(argv[i], "-res") && i < argc - 1) {
+            auto resSplit = Util::String(argv[i + 1]).split("x");
+            uint32_t x = Util::String::parseInt(resSplit[0]);
+            uint32_t y = Util::String::parseInt(resSplit[1]);
+            lfbFile->controlFile(Util::Graphic::LinearFrameBuffer::SET_RESOLUTION, Util::Array<uint32_t>({x, y, 32}));
+
+            break;
+        }
+    }
+
+    // Use double buffering to avoid tearing
+    lfb = new Util::Graphic::LinearFrameBuffer(*lfbFile);
+    bufferedlfb = new Util::Graphic::BufferedLinearFrameBuffer(*lfb);
+
+    // Calculate scale factor the game as large as possible
+    scaleFactor = lfb->getResolutionX() / DOOMGENERIC_RESX;
+    if (lfb->getResolutionY() / DOOMGENERIC_RESY < scaleFactor) {
+        scaleFactor = lfb->getResolutionY() / DOOMGENERIC_RESY;
+    }
+    if (scaleFactor == 0) {
+        scaleFactor = 1;
+    }
+
+    // Calculate offset to center the game
+    offsetX = lfb->getResolutionX() - DOOMGENERIC_RESX * scaleFactor > 0 ? (lfb->getResolutionX() - DOOMGENERIC_RESX * scaleFactor) / 2 : 0;
+    offsetY = lfb->getResolutionY() - DOOMGENERIC_RESY * scaleFactor > 0 ? (lfb->getResolutionY() - DOOMGENERIC_RESY * scaleFactor) / 2 : 0;
 
 	while (true) {
 		doomgeneric_Tick();
@@ -35,31 +75,27 @@ int main(int argc, char **argv) {
 }
 
 void DG_Init() {
-	Util::Graphic::Ansi::prepareGraphicalApplication(true);
-	auto file = new Util::Io::File("/device/lfb");
-	lfb = new Util::Graphic::LinearFrameBuffer(*file);
-    lfb->clear();
-	
 	kd = new Util::Io::KeyDecoder(new Util::Io::DeLayout());
 }
 
 void DG_DrawFrame() {
-    if (lfb == nullptr) {
+    if (bufferedlfb == nullptr) {
         return;
     }
 
-    auto offsetX = lfb->getResolutionX() - DOOMGENERIC_RESX > 0 ? (lfb->getResolutionX() - DOOMGENERIC_RESX) / 2 : 0;
-    auto offsetY = lfb->getResolutionY() - DOOMGENERIC_RESY > 0 ? (lfb->getResolutionY() - DOOMGENERIC_RESY) / 2 : 0;
+    auto screenBuffer = reinterpret_cast<uint32_t*>(bufferedlfb->getBuffer().add(offsetX * 4 + offsetY * bufferedlfb->getPitch()).get());
+    auto resX = DOOMGENERIC_RESX * scaleFactor > bufferedlfb->getResolutionX() ? bufferedlfb->getResolutionX() : DOOMGENERIC_RESX * scaleFactor;
+    auto resY = DOOMGENERIC_RESY * scaleFactor > bufferedlfb->getResolutionY() ? bufferedlfb->getResolutionY() : DOOMGENERIC_RESY * scaleFactor;
 
-    auto doomScreenBuffer = Util::Address<uint32_t>(DG_ScreenBuffer);
-    auto screenBuffer = lfb->getBuffer().add(offsetX * 4 + offsetY * lfb->getPitch());
+    for (uint32_t y = 0; y < resY; y++) {
+        for (uint32_t x = 0; x < resX; x++) {
+            screenBuffer[x] = DG_ScreenBuffer[(y / scaleFactor) * DOOMGENERIC_RESX + (x / scaleFactor)];
+        }
 
-    for (uint32_t y = 0; y < DOOMGENERIC_RESY; y++) {
-        screenBuffer.copyRange(doomScreenBuffer, DOOMGENERIC_RESX * 4);
-
-        doomScreenBuffer = doomScreenBuffer.add(DOOMGENERIC_RESX * 4);
-        screenBuffer = screenBuffer.add(lfb->getPitch());
+        screenBuffer += (bufferedlfb->getPitch() / sizeof(uint32_t));
     }
+
+    bufferedlfb->flush();
 }
 
 void DG_SleepMs(uint32_t ms) {
