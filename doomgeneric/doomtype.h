@@ -101,3 +101,5 @@ typedef uint8_t byte;
 
 #endif
 
+#define CMAP256
+
